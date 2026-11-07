@@ -392,7 +392,7 @@ const KB = [
  {k:["skill","tech","stack","language","know"],a:"Languages: C, Python, Java (beginner), JavaScript. Web: React, Node.js, Express, MongoDB, Angular. Mobile: Flutter and Dart. AI/ML: TensorFlow/Keras, PyTorch, OpenCV, scikit-learn, ONNX, OCR. Backend: FastAPI, MySQL, PostgreSQL. Tools: Docker, Render, Git, Firebase."},
  {k:["project","built","work","portfolio"],a:"Main projects: Nyabagam AI Voice Agent (a reminder app that phones you and talks in Tamil), KARE Attendance (face-recognition class attendance from photos or video), KARE ColdCare (fish cold-room monitoring with an AI freshness check), DocuChat (a PDF chat app with OCR), MCT Database (a coconut business app) and the Herbalife Account Management System (stock, customers and orders with invoice scanning). He has also built SkillLink, Gen AI learning games and a handwritten digit recognizer. Ask about any of them by name."},
  {k:["nyabagam","voice","call","reminder","agent","black shadow","vonage","gemini"],a:"Nyabagam AI Voice Agent phones you at reminder time and talks in Tamil. It records your reply and Gemini understands it, so you can say things like 'call me after 10 minutes' or 'at 12:30' and it calls back then. It has daily repeats, exam countdown calls every morning and evening, a morning briefing call, AI quick-add from plain text, and a 'Black Shadow' agent that sends friends a time-locked link and saves their replies. Built with Flask, Vonage Voice API, Gemini, Neon Postgres and Render, running 24/7."},
- {k:["attendance","face","recognition","kare attendance","class photo","proxy"],a:"KARE Attendance takes class attendance from up to 8 photos or a short video using face recognition (dlib). Each student is marked present, absent or 'check' when the match is unsure, with names drawn on the faces. It checks registration photos for size, light, blur and head angle, imports class lists from PDF, Excel or CSV, supports OD, leave and late, and exports Excel reports with a below-75% shortage list. Built with FastAPI, OpenCV, SQLite/PostgreSQL, JWT logins and a Flutter web front end, plus an accuracy tracker against the teacher's final marks."},
+ {k:["attend","face","recognition","kare","class photo","proxy","dlib"],a:"KARE Attendance takes class attendance from up to 8 photos or a short video using face recognition (dlib). Each student is marked present, absent or 'check' when the match is unsure, with names drawn on the faces. It checks registration photos for size, light, blur and head angle, imports class lists from PDF, Excel or CSV, supports OD, leave and late, and exports Excel reports with a below-75% shortage list. Built with FastAPI, OpenCV, SQLite/PostgreSQL, JWT logins and a Flutter web front end, plus an accuracy tracker against the teacher's final marks."},
  {k:["coldcare","coldcatch","fish","cold","freshness"],a:"KARE ColdCare monitors fish cold rooms live (temperature and humidity every 5 seconds across 3 rooms) with pop-up, voice and Telegram alerts. An EfficientNet-B0 model trained on 4,390 images of 8 fish species rates fish eye photos as fresh, moderately fresh or likely spoiled, at 82% validation accuracy. Sensors are simulated for now, and real ESP32 sensors are the next step. Live demo: coldcatch.onrender.com"},
  {k:["docuchat","pdf","chat app"],a:"DocuChat lets you ask your PDFs and page photos questions and returns the exact line with its page number. It works offline, scans pages with the camera, has an optional smart mode using a Gemini key, keeps recent files and supports dark mode. It is available as an Android app and a web app at vijayakannan10.github.io/docuchat-site."},
  {k:["mct","coconut","database"],a:"MCT Database is a database app for a coconut business, built with Flutter for the web and hosted on Firebase: mct-database-35ee3.web.app"},
@@ -414,9 +414,27 @@ const KB = [
 const FALLBACK = "I don't have an answer for that yet. Try asking about his projects, skills, education or contact details, or email him directly.";
 const log = document.getElementById("log"), q = document.getElementById("q"), sugg = document.getElementById("sugg");
 function add(t, c){const d = document.createElement("div"); d.className = "msg " + c; d.textContent = t; log.appendChild(d); log.scrollTop = log.scrollHeight}
+/* small spelling mistakes ("attendence", "projcts") still match */
+function lev(a, b){
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  let prev = Array.from({length: b.length + 1}, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function hit(s, words, w){
+  if (w.length <= 3) return words.includes(w) || words.includes(w + "s");   /* "hi" must not match "him"/"his", but "job" matches "jobs" */
+  if (s.includes(w)) return true;
+  if (w.length < 4 || w.includes(" ")) return false;
+  const tol = w.length >= 7 ? 2 : 1;
+  return words.some(t => t.length >= 4 && (lev(t, w) <= tol || (t.length > w.length && lev(t.slice(0, w.length), w) <= (w.length >= 6 ? 1 : 0))));
+}
 function answer(text){
-  const s = text.toLowerCase(); let best = null, top = 0;
-  for(const e of KB){let n = 0; for(const w of e.k) if(s.includes(w)) n++; if(n > top){top = n; best = e}}
+  const s = text.toLowerCase(), words = s.split(/[^a-z0-9]+/).filter(Boolean); let best = null, top = 0;
+  for(const e of KB){let n = 0; for(const w of e.k) if(hit(s, words, w)) n += w.length; if(n > top){top = n; best = e}}   /* longer, more specific words win */
   return best ? best.a : FALLBACK;
 }
 function ask(text){
